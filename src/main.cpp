@@ -46,6 +46,7 @@ Config::Config() {
   MergeWhenSize = 5;
   When2muxBound = 2;
   LogLevel = 0;
+  NumThreads = DEFAULT_NR_THREAD;
 }
 Config globalConfig;
 
@@ -110,6 +111,8 @@ static void printUsage(const char* ProgName) {
             << "      --when-size=[num]            Bound for merging nested when blocks (default: 5).\n"
             << "      --when2mux-bound=[num]       Bound for converting when to mux (default: 2).\n"
             << "      --log-level=[0|1|2]          Verbosity for additional logs.\n"
+            << "      --threads=[num]              Worker threads used by parallel stages (default: "
+            << DEFAULT_NR_THREAD << ").\n"
             << "      --dump-json                  Dump graphs in JSON (disable dot unless --dump-dot is also set).\n"
             << "      --dump-dot                   Dump graphs in DOT (disable json unless --dump-json is also set).\n"
             << "      --dump-stages=a,b,c          Dump only the listed stages (e.g., Init,TopoSort,AliasAnalysis).\n"
@@ -138,6 +141,7 @@ static char* parseCommandLine(int argc, char** argv) {
     OPT_WHEN_SIZE,
     OPT_WHEN2MUX,
     OPT_LOG_LEVEL,
+    OPT_THREADS,
     OPT_DUMP_JSON,
     OPT_DUMP_DOT,
     OPT_DUMP_STAGES,
@@ -157,6 +161,7 @@ static char* parseCommandLine(int argc, char** argv) {
       {"when-size", required_argument, nullptr, 0},
       {"when2mux-bound", required_argument, nullptr, 0},
       {"log-level", required_argument, nullptr, 0},
+      {"threads", required_argument, nullptr, 0},
       {"dump-json", no_argument, nullptr, 0},
       {"dump-dot", no_argument, nullptr, 0},
       {"dump-stages", required_argument, nullptr, 0},
@@ -186,6 +191,15 @@ static char* parseCommandLine(int argc, char** argv) {
                 case OPT_WHEN_SIZE: sscanf(optarg, "%d", &globalConfig.MergeWhenSize); break;
                 case OPT_WHEN2MUX: sscanf(optarg, "%d", &globalConfig.When2muxBound); break;
                 case OPT_LOG_LEVEL: sscanf(optarg, "%d", &globalConfig.LogLevel); break;
+                case OPT_THREADS:
+                  if (sscanf(optarg, "%d", &globalConfig.NumThreads) != 1 || globalConfig.NumThreads < 1) {
+                    fprintf(stderr, "Error: --threads expects a positive integer, got '%s'.\n", optarg);
+                    printUsage(argv[0]);
+                    std::cout.flush();
+                    fflush(nullptr);
+                    _exit(EXIT_FAILURE);
+                  }
+                  break;
                 case OPT_DUMP_JSON:
                   if (explicitDot) {
                     fprintf(stderr, "Error: --dump-json and --dump-dot cannot be used together.\n");
