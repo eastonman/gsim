@@ -23,10 +23,10 @@ static std::map<Node*, Node*> aliasMap;
 static std::map<Node*, std::vector<std::pair<Node*, int>>> splittedNodesSeg;
 static std::map<Node*, std::vector<Node*>> splittedNodesSet;
 /* all nodes after splitting */
-static std::set<Node*> allSplittedNodes;
+static std::set<Node*, IdLess<Node>> allSplittedNodes;
 
 static std::priority_queue<Node*, std::vector<Node*>, ordercmp> reInferQueue;
-static std::set<Node*> uniqueReinfer;
+static std::set<Node*, IdLess<Node>> uniqueReinfer;
 
 ExpTree* dupSplittedTree(ExpTree* tree, Node* regold, Node* regnew);
 ExpTree* dupTreeWithBits(ExpTree* tree, int hi, int lo);
@@ -382,7 +382,7 @@ NodeComponent* Node::reInferComponent() {
   return newComp;
 }
 
-void reInferAll(bool record, std::set<Node*>& reinferNodes) {
+void reInferAll(bool record, std::set<Node*, IdLess<Node>>& reinferNodes) {
   while(!reInferQueue.empty()) {
     Node* node = reInferQueue.top();
     reInferQueue.pop();
@@ -397,7 +397,7 @@ void reInferAll(bool record, std::set<Node*>& reinferNodes) {
 }
 
 void reInferAll() {
-  std::set<Node*> tmp;
+  std::set<Node*, IdLess<Node>> tmp;
   reInferAll(false, tmp);
 }
 
@@ -778,7 +778,9 @@ void graph::splitNodes() {
     }
   }
   /* update refer & update segments for each node */
-  std::set<Node*> validNodes;
+  /* iterating these decides the order in which split nodes are created, and
+   * therefore every node id assigned afterwards */
+  std::set<Node*, IdLess<Node>> validNodes;
   for (int i = sortedSuper.size() - 1; i >= 0; i --) {
     for (int j = sortedSuper[i]->member.size() - 1; j >= 0; j --) {
       Node* node = sortedSuper[i]->member[j];
@@ -788,8 +790,8 @@ void graph::splitNodes() {
     }
   }
 
-  std::set<Node*> checkNodes(validNodes);
-  std::set<Node*> arrayMember;
+  std::set<Node*, IdLess<Node>> checkNodes(validNodes);
+  std::set<Node*, IdLess<Node>> arrayMember;
   for (Node* node : validNodes) {
     for (Node* next : node->next) {
       if (next->isArray()) arrayMember.insert(node);
