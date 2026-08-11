@@ -363,7 +363,11 @@ public:
   bool operator<(const InstInfo& other) const {
     if (infoType != other.infoType) return infoType < other.infoType;
     if (inst != other.inst) return inst < other.inst;
-    return node < other.node;
+    /* the assign forms carry no text, so the node decides the order; compare
+     * identities rather than addresses to keep it out of the heap layout */
+    if (node == other.node) return false;
+    if (!node || !other.node) return other.node != nullptr;
+    return node->id < other.node->id;
   }
 };
 typedef std::set<SuperNode*, IdLess<SuperNode>> SuperSet;
