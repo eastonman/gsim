@@ -92,7 +92,9 @@ void graph::replicationOpt() {
   /* remove replication nodes and update connections */
   for (int i = repNodes.size() - 1; i >= 0; i --) {
     Node* node = repNodes[i];
-    std::map<SuperNode*, std::vector<Node*>> nextSuper;
+    /* the iteration order names the duplicates and allocates them, so it has
+     * to follow identity rather than address */
+    std::map<SuperNode*, std::vector<Node*>, IdLess<SuperNode>> nextSuper;
     bool remainNode = false;
     for (Node* next : node->next) {
       if (nextSuper.find(next->super) == nextSuper.end()) nextSuper[next->super] = std::vector<Node*>();
