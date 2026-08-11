@@ -328,7 +328,10 @@ bool isLastWhenCond(std::vector<int>&path, ExpTree* referTree) {
 
 void SuperNode::reorderMember() {
   std::vector<Node*> newMember;
-  std::map<Node*, int> nodePrev;
+  /* the roots of this ordering are taken by walking the map, so it is keyed by
+   * identity: it decides the order of the members and with them the order the
+   * nodes are declared and evaluated */
+  std::map<Node*, int, IdLess<Node>> nodePrev;
   for (Node* node : member) {
     nodePrev[node] = 0;
     for (Node* prev : node->depPrev) {
