@@ -373,7 +373,7 @@ void graph::mergeIn1() {
 uint64_t prevHash(SuperNode* super) {
   uint64_t ret = super->prev.size()*7;
   for (SuperNode* prev : super->prev) {
-    ret += (uint64_t)prev;
+    ret += (uint64_t)prev->id;
   }
   return ret;
 }
@@ -393,7 +393,7 @@ void graph::mergeSublings() {
   }
 
   for (auto iter : prevSuper) {
-    std::set<SuperNode*> uniquePrev;
+    std::set<SuperNode*, IdLess<SuperNode>> uniquePrev;
     for (SuperNode* super : iter.second) {
       bool find = false;
       for (SuperNode* checkSuper : uniquePrev) {
