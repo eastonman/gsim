@@ -18,7 +18,17 @@
 #include <algorithm>
 #include <set>
 #include <map>
+#include <unordered_map>
 #include <gmp.h>
+/* Without OpenMP the pragmas are ignored and every pass runs on one thread;
+   these stubs keep the surrounding code compiling unchanged. */
+#ifdef _OPENMP
+#include <omp.h>
+#else
+static inline int omp_get_max_threads() { return 1; }
+static inline int omp_get_thread_num() { return 0; }
+static inline void omp_set_num_threads(int) {}
+#endif
 #include <cstdarg>
 
 #define DEFAULT_NR_THREAD 10
@@ -122,6 +132,18 @@ enum ResetType { UNCERTAIN, ASYRESET, UINTRESET, ZERO_RESET };
 #define newName(node) newBasic(node)
 #define oldName(node) (node->name + "$old$" + std::to_string(node->id))
 
+/*
+  Order a container of graph objects by their identity rather than by where
+  they happen to sit in the heap. Iterating a std::set<T*> visits elements in
+  address order, so any decision taken from that order makes the generated
+  model depend on the allocation pattern instead of on the input.
+*/
+template <typename T>
+struct IdLess {
+  bool operator()(const T* a, const T* b) const { return a->id < b->id; }
+};
+
+#include "adjacency.h"
 #include "opFuncs.h"
 #include "debug.h"
 #include "Node.h"

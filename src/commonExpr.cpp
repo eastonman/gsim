@@ -1,18 +1,19 @@
 #include "common.h"
 #include <cstdint>
 #include <stack>
+#include <unordered_map>
 
 #define MAX_COMMON_NEXT 5
 
-static std::map<uint64_t, std::vector<Node*>> exprId;
-
-static std::map<Node*, uint64_t> nodeId;
-static std::map<Node*, Node*> realValueMap;
-static std::map<Node*, Node*> aliasMap;
+/* candidates sharing a hash key */
+static std::unordered_map<uint64_t, std::vector<Node*>> exprId;
+/* per key, the representative of every distinct value group found so far */
+static std::unordered_map<uint64_t, std::vector<Node*>> key2UniqueNodes;
+static std::unordered_map<Node*, Node*> aliasMap;
 
 
 uint64_t ENode::keyHash() {
-  if (nodePtr) return nodeId.find(nodePtr) != nodeId.end() ? nodeId[nodePtr] : nodePtr->id;
+  if (nodePtr) return nodePtr->exprKey;
   else return opType * width;
 }
 
@@ -46,8 +47,10 @@ bool checkENodeEq(ENode* enode1, ENode* enode2) {
   if (enode1->opType == OP_INT && enode1->strVal != enode2->strVal) return false;
   if (enode1->values.size() != enode2->values.size()) return false;
   if ((!enode1->getNode() && enode2->getNode()) || (enode1->getNode() && !enode2->getNode())) return false;
-  bool realEq = realValueMap.find(enode1->getNode()) != realValueMap.end() && realValueMap.find(enode2->getNode()) != realValueMap.end() && realValueMap[enode1->getNode()] == realValueMap[enode2->getNode()];
-  if (enode1->getNode() && enode2->getNode() && enode1->getNode() != enode2->getNode() && !realEq) return false;
+  Node* node1 = enode1->getNode();
+  Node* node2 = enode2->getNode();
+  bool realEq = node1 && node2 && node1->realValue && node1->realValue == node2->realValue;
+  if (node1 && node2 && node1 != node2 && !realEq) return false;
   for (size_t i = 0; i < enode1->values.size(); i ++) {
     if (enode1->values[i] != enode2->values[i]) return false;
   }
@@ -79,7 +82,7 @@ static bool checkNodeEq (Node* node1, Node* node2) {
   return true;
 }
 
-void ExpTree::replace(std::map<Node*, Node*>& aliasMap) {
+void ExpTree::replace(std::unordered_map<Node*, Node*>& aliasMap) {
   std::stack<ENode*> s;
   s.push(getRoot());
   if (getlval()) s.push(getlval());
@@ -97,61 +100,66 @@ void ExpTree::replace(std::map<Node*, Node*>& aliasMap) {
 
 /* TODO: check common regs */
 void graph::commonExpr() {
+  /* exprKey already holds the node id, which is the key of an unhashed node */
   for (SuperNode* super : sortedSuper) {
-    if (super->superType != SUPER_VALID) {
-      for (Node* node : super->member) nodeId[node] = node->id;
-      continue;
-    }
+    if (super->superType != SUPER_VALID) continue;
     for (Node* node : super->member) {
       if(node->status != VALID_NODE) continue;
-      nodeId[node] = node->id;
       if (node->type != NODE_OTHERS || node->isArray()) continue;
       if (node->prev.size() == 0) continue;
       // if (node->next.size() == 1) continue;
       uint64_t key = node->keyHash();
-      if (exprId.find(key) == exprId.end()) {
-        exprId[key] = std::vector<Node*>();
-      }
       exprId[key].push_back(node);
-      nodeId[node] = key;
+      node->exprKey = key;
     }
   }
 
-  std::map<Node*, std::vector<Node*>> uniqueNodes;
-  std::map<uint64_t, std::vector<Node*>> key2UniqueNodes;
+  /* Groups of nodes computing the same value, headed by their representative.
+   * A node is appended to every group it matches, so a later match overwrites
+   * the representative recorded for it. */
+  std::vector<std::pair<Node*, std::vector<Node*>>> groups;
   for (SuperNode* super : sortedSuper) {
     for (Node* node : super->member) {
-      uint64_t key = nodeId[node];
+      uint64_t key = node->exprKey;
       if (exprId[key].size() <= 1) { // slot with only one member
-        realValueMap[node] = node;
-        uniqueNodes[node] = std::vector<Node*>(1, node);
+        /* nothing can alias it, so it needs no group */
+        node->realValue = node;
         continue;
       }
       for (Node* unique : key2UniqueNodes[key]) {
-        if (uniqueNodes.find(unique) != uniqueNodes.end() && checkNodeEq(node, unique)) {
-          uniqueNodes[unique].push_back(node);
-          realValueMap[node] = unique;
+        if (unique->groupIdx >= 0 && checkNodeEq(node, unique)) {
+          groups[unique->groupIdx].second.push_back(node);
+          node->realValue = unique;
         }
       }
-      if (realValueMap.find(node) == realValueMap.end()) {
-        realValueMap[node] = node;
-        uniqueNodes[node] = std::vector<Node*>(1, node);
+      if (!node->realValue) {
+        node->realValue = node;
+        node->groupIdx = groups.size();
+        groups.push_back(std::make_pair(node, std::vector<Node*>(1, node)));
         key2UniqueNodes[key].push_back(node);
       }
     }
   }
 
-  for (auto iter : uniqueNodes) {
-    bool mergeCond = iter.second.size() >= MAX_COMMON_NEXT || iter.second[0]->width > BASIC_WIDTH;
+  /* a node reachable from several groups takes the alias of the last group
+   * that claims it, so the groups must be visited in a fixed order */
+  std::sort(groups.begin(), groups.end(),
+    [](const std::pair<Node*, std::vector<Node*>>& a, const std::pair<Node*, std::vector<Node*>>& b) {
+      return a.first->id < b.first->id;
+    });
+
+  for (auto& group : groups) {
+    std::vector<Node*>& members = group.second;
+    bool mergeCond = members.size() >= MAX_COMMON_NEXT || members[0]->width > BASIC_WIDTH;
     if (!mergeCond) {
-      for (auto iter1 : iter.second) {
-        if (iter1->next.size() > 1) mergeCond = true;
+      for (Node* member : members) {
+        if (member->next.size() > 1) mergeCond = true;
       }
     }
     if (mergeCond) {
-      Node* aliasNode = iter.second[0];
-      for (size_t i = 1; i < iter.second.size(); i ++) {
-        Node* node = iter.second[i];
+      Node* aliasNode = members[0];
+      for (size_t i = 1; i < members.size(); i ++) {
+        Node* node = members[i];
         aliasMap[node] = aliasNode;
         node->status = DEAD_NODE;
       }

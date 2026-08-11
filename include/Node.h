@@ -93,6 +93,17 @@ class AggrParentNode {  // virtual type_aggregate node, used for aggregate conne
   }
 };
 
+/*
+  A neighbour update that lands on a node other than the one being processed.
+  Recording it instead of applying it lets a worker restrict its writes to the
+  nodes it owns, so the adjacency of the whole graph can be rebuilt in parallel.
+*/
+struct PendingEdge {
+  Node* target;
+  Node* value;
+  bool isNext;  /* target gains value as a successor, otherwise as a predecessor */
+};
+
 class Node {
   static int counter;
  public:
@@ -100,6 +111,7 @@ class Node {
   Node(NodeType _type = NODE_OTHERS) {
     type    = _type;
     id = counter ++;
+    exprKey = id;
   }
 
   std::string name;  // concat the module name in order (member in structure / temp variable)
@@ -115,14 +127,14 @@ class Node {
   int orderInSuper = -1;
   int lineno = -1;
   /* adjacent */
-  std::set<Node*> next;
-  std::set<Node*> prev;
+  AdjSet<Node> next;
+  AdjSet<Node> prev;
   /* dependent but not adjacent
    * e.g. reg_src -> node1; node2->reg_dst; then:
    * node1 is depPrev of reg_dst, as activeFlags of node1 must first be cleared before reg_dst is activated
   */
-  std::set<Node*> depPrev;
-  std::set<Node*> depNext;
+  AdjSet<Node> depPrev;
+  AdjSet<Node> depNext;
   std::vector <ExpTree*> assignTree;
   SuperNode* super = nullptr;
   std::vector<Node*> member;
@@ -156,6 +168,15 @@ class Node {
 
 /* used in instsGenerator */
   bool nodeIsRoot = false;
+
+/* used in commonExpr */
+  /* hash of the assign trees; identifies nodes that may compute the same value.
+   * defaults to the node id, which is what an unhashed node contributes */
+  uint64_t exprKey;
+  /* representative of the group of nodes computing the same value */
+  Node* realValue = nullptr;
+  /* index into the pass-local group table, -1 when the node heads no group */
+  int groupIdx = -1;
 
 /* used in cppEmitter */
   std::set<int> nextActiveId;
@@ -273,7 +294,8 @@ class Node {
   void eraseDepNext(Node* node);
   void clearPrev();
   void updateDep();
-  void updateConnect();
+  /* with pending set, updates to other nodes are collected instead of applied */
+  void updateConnect(std::vector<PendingEdge>* pending = nullptr);
   void inferWidth();
   void clearWidth();
   void addReset();
