@@ -13,6 +13,9 @@ void graph::topoSort() {
   /* splitArray appends to supersrc after AST2Graph sorted it, so the seed order
    * has to be restored before it decides the traversal */
   std::sort(supersrc.begin(), supersrc.end(), [](SuperNode* a, SuperNode* b) {return a->id < b->id;});
+  /* a superNode can be appended more than once, which would seed the walk with
+   * the same root twice */
+  supersrc.erase(std::unique(supersrc.begin(), supersrc.end()), supersrc.end());
 #endif
   for (SuperNode* node : supersrc) {
     if (node->depPrev.size() == 0) s.push(node);
