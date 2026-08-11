@@ -685,6 +685,12 @@ void graph::genResetActivation(SuperNode* super, bool isUIntReset, int indent, i
 
 void graph::genResetAll() {
   std::vector<SuperNode*> resetSuper;
+  /* the position in allReset numbers the reset functions, so it is fixed from
+   * the identity of the reset signal rather than from how allReset was built */
+  std::sort(allReset.begin(), allReset.end(), [](SuperNode* a, SuperNode* b) {
+    if (a->resetNode != b->resetNode) return a->resetNode->id < b->resetNode->id;
+    return a->superType < b->superType;
+  });
   for (SuperNode* super : allReset) {
     if (super->resetNode->status == CONSTANT_NODE) {
       Assert(mpz_sgn(super->resetNode->computeInfo->consVal) == 0, "reset %s is always true", super->resetNode->name.c_str());
