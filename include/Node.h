@@ -93,17 +93,6 @@ class AggrParentNode {  // virtual type_aggregate node, used for aggregate conne
   }
 };
 
-/*
-  A neighbour update that lands on a node other than the one being processed.
-  Recording it instead of applying it lets a worker restrict its writes to the
-  nodes it owns, so the adjacency of the whole graph can be rebuilt in parallel.
-*/
-struct PendingEdge {
-  Node* target;
-  Node* value;
-  bool isNext;  /* target gains value as a successor, otherwise as a predecessor */
-};
-
 class Node {
   static int counter;
  public:
@@ -294,8 +283,7 @@ class Node {
   void eraseDepNext(Node* node);
   void clearPrev();
   void updateDep();
-  /* with pending set, updates to other nodes are collected instead of applied */
-  void updateConnect(std::vector<PendingEdge>* pending = nullptr);
+  void updateConnect();
   void inferWidth();
   void clearWidth();
   void addReset();

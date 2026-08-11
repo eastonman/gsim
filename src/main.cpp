@@ -290,9 +290,6 @@ int main(int argc, char** argv) {
   static int dumpIdx = 0;
   const char *InputFileName = parseCommandLine(argc, argv);
 
-  /* parallel stages share the OpenMP pool sized from --threads */
-  omp_set_num_threads(globalConfig.NumThreads);
-
   size_t size = 0, mapSize = 0;
   char *strbuf;
   FUNC_TIMER(strbuf = readFile(InputFileName, size, mapSize));
