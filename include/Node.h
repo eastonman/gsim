@@ -366,16 +366,19 @@ public:
     return node < other.node;
   }
 };
+typedef std::set<SuperNode*, IdLess<SuperNode>> SuperSet;
+
 class SuperNode {
 private:
   static int counter;  // initialize to 1
 public:
-  /* adjacent superNodes */
-  std::set<SuperNode*> prev;
-  std::set<SuperNode*> next;
+  /* adjacent superNodes, ordered by identity so that traversals over them do
+   * not depend on where the superNodes were allocated */
+  SuperSet prev;
+  SuperSet next;
   /* dependent but not adjacent */
-  std::set<SuperNode*> depPrev;
-  std::set<SuperNode*> depNext;
+  SuperSet depPrev;
+  SuperSet depNext;
   std::vector<Node*> member; // The order of member is neccessary
   std::vector<InstInfo> insts;
   StmtTree* stmtTree = nullptr;
@@ -416,12 +419,12 @@ public:
   }
   void clear_relation();
   void addPrev(SuperNode* super);
-  void addPrev(std::set<SuperNode*>& super);
+  void addPrev(SuperSet& super);
   void erasePrev(SuperNode* super);
   void addDepPrev(SuperNode* super);
   void eraseDepPrev(SuperNode* super);
   void addNext(SuperNode* super);
-  void addNext(std::set<SuperNode*>& super);
+  void addNext(SuperSet& super);
   void eraseNext(SuperNode* super);
   void eraseDepNext(SuperNode* super);
   void addDepNext(SuperNode* super);

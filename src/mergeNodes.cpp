@@ -78,11 +78,13 @@ void graph::mergeWhenNodes() {
 void graph::mergeWhenNodes() {
   std::queue<SuperNode*> s;
   std::queue<SuperNode*> cond;
-  std::set<SuperNode*> condWait;
+  /* condWait is popped from the front and whenMap decides the merge order, so
+   * both are keyed by identity rather than by address */
+  std::set<SuperNode*, IdLess<SuperNode>> condWait;
   std::map<SuperNode*, std::set<SuperNode*>> allCond;
   std::map<SuperNode*, SuperNode*> node2Cond;
   std::map<SuperNode*, int>times;
-  std::map<SuperNode*, std::vector<SuperNode*>> whenMap;
+  std::map<SuperNode*, std::vector<SuperNode*>, IdLess<SuperNode>> whenMap;
   /* generator all cond nodes */
   for (SuperNode* super : sortedSuper) {
     times[super] = 0;
