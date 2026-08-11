@@ -14,7 +14,7 @@ void SuperNode::addPrev(SuperNode* node) {
   depPrev.insert(node);
 }
 
-void SuperNode::addPrev(std::set<SuperNode*>& super) {
+void SuperNode::addPrev(SuperSet& super) {
   prev.insert(super.begin(), super.end());
   depPrev.insert(super.begin(), super.end());
 }
@@ -37,7 +37,7 @@ void SuperNode::addNext(SuperNode* node) {
   depNext.insert(node);
 }
 
-void SuperNode::addNext(std::set<SuperNode*>& super) {
+void SuperNode::addNext(SuperSet& super) {
   next.insert(super.begin(), super.end());
   depNext.insert(super.begin(), super.end());
 }
