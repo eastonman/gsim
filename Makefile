@@ -145,6 +145,18 @@ GSIM_INC_DIR = include $(PARSER_DIR)/include $(PARSER_BUILD_DIR)
 #    You can force DWARF v4 by building with: make DWARF4=1 ... (see conditional below).
 CXXFLAGS += -ggdb -O3 -MMD $(addprefix -I,$(GSIM_INC_DIR)) -Wall -Werror --std=c++17 -pthread
 
+# Optional code generation tuning, both off by default: they trade portability
+# of the gsim binary for speed and leave the generated model unchanged.
+#   NATIVE=1  build for the host ISA
+#   LTO=1     optimise across translation units
+ifeq ($(NATIVE),1)
+  CXXFLAGS += -march=native -mtune=native
+endif
+ifeq ($(LTO),1)
+  LTO_FLAG := $(shell echo 'int main(){return 0;}' | $(CXX) -flto=thin -x c++ - -o /dev/null 2>/dev/null && echo '-flto=thin' || echo '-flto')
+  CXXFLAGS += $(LTO_FLAG)
+endif
+
 GSIM_VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo UNKNOWN)
 GSIM_BUILD_DATE ?= $(shell date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || echo UNKNOWN)
 GSIM_CXX_VERSION ?= $(shell $(CXX) --version 2>/dev/null | head -n 1 || echo UNKNOWN)

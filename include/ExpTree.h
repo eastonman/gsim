@@ -80,6 +80,9 @@ enum OPType {
 };
 
 class ENode {
+public:
+  /* used in splitNodes */
+  NodeComponent* component = nullptr;
 private:
   static int counter;
   valInfo* instsMux(Node* n, std::string lvalue, bool isRoot);

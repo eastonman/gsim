@@ -14,10 +14,7 @@
 #define NODE_REF first
 #define NODE_UPDATE second
 /* refer & update segment */
-static std::map<Node*, std::pair<Segments*, Segments*>> nodeSegments;
 
-std::map <Node*, NodeComponent*> componentMap;
-std::map <ENode*, NodeComponent*> componentEMap;
 static std::vector<Node*> checkNodes;
 static std::map<Node*, Node*> aliasMap;
 static std::map<Node*, std::vector<std::pair<Node*, int>>> splittedNodesSeg;
@@ -58,20 +55,20 @@ void createSplittedNode(Node* node, std::set<int>& cuts) {
       newDstNode->width = hi - lo + 1;
       newDstNode->super = new SuperNode(newDstNode);
       newSrcNode->bindReg(newDstNode);
-      componentMap[newDstNode] = new NodeComponent();
-      componentMap[newDstNode]->addElementAll(new NodeElement(ELE_SPACE));
-      nodeSegments[newDstNode] = std::make_pair(new Segments(newDstNode->width), new Segments(newDstNode->width));
-      componentMap[newSrcNode] = new NodeComponent();
-      componentMap[newSrcNode]->addElementAll(new NodeElement(ELE_SPACE));
-      nodeSegments[newSrcNode] = std::make_pair(new Segments(newSrcNode->width), new Segments(newSrcNode->width));
+      newDstNode->component = new NodeComponent();
+      newDstNode->component->addElementAll(new NodeElement(ELE_SPACE));
+      newDstNode->segments = std::make_pair(new Segments(newDstNode->width), new Segments(newDstNode->width));
+      newSrcNode->component = new NodeComponent();
+      newSrcNode->component->addElementAll(new NodeElement(ELE_SPACE));
+      newSrcNode->segments = std::make_pair(new Segments(newSrcNode->width), new Segments(newSrcNode->width));
       splittedNode = newSrcNode;
     } else {
       splittedNode = node->dup(node->type, node->name + format("$%d_%d", hi, lo));
       splittedNode->width = hi - lo + 1;
       splittedNode->super = new SuperNode(splittedNode);
-      componentMap[splittedNode] = new NodeComponent();
-      componentMap[splittedNode]->addElementAll(new NodeElement(ELE_SPACE));
-      nodeSegments[splittedNode] = std::make_pair(new Segments(splittedNode->width), new Segments(splittedNode->width));
+      splittedNode->component = new NodeComponent();
+      splittedNode->component->addElementAll(new NodeElement(ELE_SPACE));
+      splittedNode->segments = std::make_pair(new Segments(splittedNode->width), new Segments(splittedNode->width));
     }
 
     for (int i = lo; i <= hi; i ++) splittedNodesSeg[node][i] = std::make_pair(splittedNode, i - lo);
@@ -105,7 +102,7 @@ void createSplittedNode(Node* node, std::set<int>& cuts) {
   for (Node* n : splittedNodesSet[node]) n->updateConnect();
   node->clearPrev();
   node->addPrev(splittedNodesSet[node]);
-  componentMap[node]->invalidateAll();
+  node->component->invalidateAll();
   std::reverse(splittedNodesSet[node].begin(), splittedNodesSet[node].end());
 
   if (node->type == NODE_REG_SRC) {
@@ -197,11 +194,11 @@ NodeComponent* ENode::inferComponent(Node* n) {
     Node* node = getNode();
     if (node->isArray() || node->sign) {
       NodeComponent* ret = spaceComp(node->width);
-      componentEMap[this] = ret;
+      this->component = ret;
       return ret;
     }
-    Assert(componentMap.find(node) != componentMap.end(), "%s is not visited when infer %s %p", node->name.c_str(), n->name.c_str(), this);
-    NodeComponent* ret = componentMap[node]->getbits(width-1, 0);
+    Assert(node->component != nullptr, "%s is not visited when infer %s %p", node->name.c_str(), n->name.c_str(), this);
+    NodeComponent* ret = node->component->getbits(width-1, 0);
     if (!ret->fullValid()) {
       ret = new NodeComponent();
       ret->addElement(new NodeElement(ELE_NODE, node, width - 1, 0));
@@ -214,7 +211,7 @@ NodeComponent* ENode::inferComponent(Node* n) {
       }
     } else
       ret->addDirectElement(new NodeElement(ELE_NODE, node, width - 1, 0));
-    componentEMap[this] = ret;
+    this->component = ret;
     return ret;
   }
   std::vector<NodeComponent*> childComp;
@@ -305,7 +302,7 @@ NodeComponent* ENode::inferComponent(Node* n) {
       break;
   }
   if (!ret) ret = spaceComp(width);
-  componentEMap[this] = ret;
+  this->component = ret;
   return ret;
 }
 
@@ -318,7 +315,7 @@ void ExpTree::clearComponent() {
   if (!s.empty()) {
     ENode* top = s.top();
     s.pop();
-    componentEMap.erase(top);
+    top->component = nullptr;
     for (ENode* child : top->child) {
       if (child) s.push(child);
     }
@@ -333,13 +330,13 @@ void genReferSegment(Node* node, NodeComponent* comp) {
         if (node == referNode) continue;
         int hi = referHi(iter), lo = referLo(iter);
         // printf("refer %s [%d, %d] from %s\n", referNode->name.c_str(), hi, lo, node->name.c_str());
-        nodeSegments[referNode].first->addRange(hi, lo, referLevel(iter));
+        referNode->segments.first->addRange(hi, lo, referLevel(iter));
       }
     } else if (element->eleType == ELE_NODE) {
       Node* referNode = element->node;
       if (node == referNode) continue;
       // printf("refer %s [%d, %d] from %s\n", referNode->name.c_str(), element->hi, element->lo, node->name.c_str());
-      nodeSegments[referNode].first->addRange(element->hi, element->lo, OPL_BITS);
+      referNode->segments.first->addRange(element->hi, element->lo, OPL_BITS);
     }
   }
 }
@@ -351,30 +348,30 @@ void eraseReferSegment(Node* node, NodeComponent* comp) {
         Node* referNode = referNode(iter);
         if (node == referNode) continue;
         int hi = referHi(iter), lo = referLo(iter);
-        nodeSegments[referNode].first->eraseRange(hi, lo, referLevel(iter));
+        referNode->segments.first->eraseRange(hi, lo, referLevel(iter));
       }
     } else if (element->eleType == ELE_NODE) {
       Node* referNode = element->node;
       if (node == referNode) continue;
-      nodeSegments[referNode].first->eraseRange(element->hi, element->lo, OPL_BITS);
+      referNode->segments.first->eraseRange(element->hi, element->lo, OPL_BITS);
     }
   }
 }
 
 NodeComponent* Node::reInferComponent() {
-  NodeComponent* oldComp = componentMap[this];
+  NodeComponent* oldComp = this->component;
   /* eliminate effects on segments */
   eraseReferSegment(this, oldComp);
   /* erase old component */
-  componentMap.erase(this);
+  this->component = nullptr;
   for (ExpTree* tree : assignTree) tree->clearComponent();
   if (resetTree) resetTree->clearComponent();
   NodeComponent* newComp = inferComponent();
   if (!oldComp->assignAllEq(newComp)) {
     for (Node* nextNode : next) addReInfer(nextNode);
   }
-  componentMap[this] = newComp;
-  nodeSegments[this].second = new Segments(newComp);
+  this->component = newComp;
+  this->segments.second = new Segments(newComp);
   // printf("reinfer node %s (%p) eq %d\n", name.c_str(), this, oldComp->assignAllEq(newComp));
   // display();
   // newComp->display();
@@ -412,7 +409,7 @@ NodeComponent* Node::inferComponent() {
   if (splittedNodesSet.find(this) != splittedNodesSet.end()) {
     NodeComponent* ret = new NodeComponent();
     for (int i = splittedNodesSet[this].size() - 1; i >= 0; i --) {
-      NodeComponent* comp = componentMap[splittedNodesSet[this][i]];
+      NodeComponent* comp = splittedNodesSet[this][i]->component;
       if (comp->fullValid()) ret->merge(comp->dup());
       else ret->addElement(new NodeElement(ELE_NODE, splittedNodesSet[this][i], splittedNodesSet[this][i]->width - 1, 0));
     }
@@ -451,11 +448,11 @@ void setComponent(Node* node, NodeComponent* comp) {
       if (element->eleType == ELE_NODE) element->referNodes.insert(std::make_tuple(element->node, element->hi, element->lo, OPL_BITS));
     }
   }
-  componentMap[node] = comp;
+  node->component = comp;
 /* update node segment */
-  if (nodeSegments.find(node) == nodeSegments.end()) nodeSegments[node] = std::make_pair(new Segments(node->width), new Segments(node->width));
+  if (!node->segments.first) node->segments = std::make_pair(new Segments(node->width), new Segments(node->width));
 /* update segment*/
-  nodeSegments[node].second->construct(comp);
+  node->segments.second->construct(comp);
 }
 
 void ExpTree::replaceAndUpdateWidth(Node* oldNode, Node* newNode) {
@@ -710,14 +707,14 @@ void ExpTree::updateWithSplittedNode() {
     int idx;
     std::tie(top, parent, idx) = s.top();
     s.pop();
-    if (componentEMap.find(top) == componentEMap.end()) continue;
+    if (!top->component) continue;
     // printf("enode %p\n", top);
-    // componentEMap[top]->display();
-    componentEMap[top]->mergeNeighbor();
-    if (enodeNeedReplace(top, componentEMap[top])) {
+    // top->component->display();
+    top->component->mergeNeighbor();
+    if (enodeNeedReplace(top, top->component)) {
       ENode* replaceENode = nullptr;
 
-      replaceENode = constructRootFromComponent(componentEMap[top]);
+      replaceENode = constructRootFromComponent(top->component);
       if (parent) {
         parent->setChild(idx, replaceENode);
       } else setRoot(replaceENode);
@@ -760,11 +757,11 @@ void getCut(Node* node, std::set<int>& cuts, Segments* seg1, Segments* seg2) {
 
 void graph::splitNodes() {
   int num = 0;
-  /* initialize nodeSegments */
+  /* initialize segments */
   for (SuperNode* super : sortedSuper) {
-    for (Node* node : super->member) nodeSegments[node] = std::make_pair(new Segments(node->width), new Segments(node->width));
+    for (Node* node : super->member) node->segments = std::make_pair(new Segments(node->width), new Segments(node->width));
   }
-/* update nodeComponent & nodeSegments */
+/* update component & segments */
   for (SuperNode* super : sortedSuper) {
     for (Node* node : super->member) {
       NodeComponent* comp;
@@ -773,8 +770,8 @@ void graph::splitNodes() {
       setComponent(node, comp);
       // printf("after infer %s\n", node->name.c_str());
       // node->display();
-      // componentMap[node]->display();
-      Assert(node->width == componentMap[node]->countWidth(), "%s width not match %d != %d", node->name.c_str(), node->width, comp->width);
+      // node->component->display();
+      Assert(node->width == node->component->countWidth(), "%s width not match %d != %d", node->name.c_str(), node->width, comp->width);
     }
   }
   /* update refer & update segments for each node */
@@ -784,7 +781,7 @@ void graph::splitNodes() {
   for (int i = sortedSuper.size() - 1; i >= 0; i --) {
     for (int j = sortedSuper[i]->member.size() - 1; j >= 0; j --) {
       Node* node = sortedSuper[i]->member[j];
-      NodeComponent* comp = componentMap[node];
+      NodeComponent* comp = node->component;
       validNodes.insert(node);
       genReferSegment(node, comp);
     }
@@ -802,16 +799,16 @@ void graph::splitNodes() {
     for (Node* node : checkNodes) {
       // printf("node %s(w = %d, type %d):\n", node->name.c_str(), node->width, node->type);
       Node* updateNode = node->type == NODE_REG_SRC ? node->getDst() : node;
-      // for (auto cut : nodeSegments[node].first->boundCount) printf("[%d]=%d ", cut.first, cut.second);
-      // for (auto cut : nodeSegments[updateNode].second->boundCount) printf("[%d]=%d ", cut.first, cut.second);
+      // for (auto cut : node->segments.first->boundCount) printf("[%d]=%d ", cut.first, cut.second);
+      // for (auto cut : updateNode->segments.second->boundCount) printf("[%d]=%d ", cut.first, cut.second);
       // printf("\n-------\n");
-      // for (auto cut : nodeSegments[node].first->concatCount) printf("[%d]=%d ", cut.first, cut.second);
-      // for (auto cut : nodeSegments[updateNode].second->concatCount) printf("[%d]=%d ", cut.first, cut.second);
+      // for (auto cut : node->segments.first->concatCount) printf("[%d]=%d ", cut.first, cut.second);
+      // for (auto cut : updateNode->segments.second->concatCount) printf("[%d]=%d ", cut.first, cut.second);
       // printf("\n-------\n");
       if ((node->type != NODE_OTHERS && node->type != NODE_REG_SRC) || node->width == 0 || node->sign || allSplittedNodes.find(node) != allSplittedNodes.end()) continue;
       if (arrayMember.find(node) != arrayMember.end()) continue;
       std::set<int>nodeCuts;
-      getCut(node, nodeCuts, nodeSegments[node].first, nodeSegments[updateNode].second);
+      getCut(node, nodeCuts, node->segments.first, updateNode->segments.second);
       nodeCuts.insert(node->width - 1);
       if (nodeCuts.size() <= 1) {
         Assert(nodeCuts.size() == 1 && *nodeCuts.begin() == node->width - 1, "invalid cut %ld %d %s", nodeCuts.size(), nodeCuts.size() == 0 ? -1 : *nodeCuts.begin(), node->name.c_str());

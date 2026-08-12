@@ -9,6 +9,7 @@
 std::string format(const char *fmt, ...);
 
 class NodeComponent;
+class Segments;
 class StmtTree;
 
 enum NodeType{
@@ -157,6 +158,11 @@ class Node {
 
 /* used in instsGenerator */
   bool nodeIsRoot = false;
+
+/* used in splitNodes */
+  NodeComponent* component = nullptr;
+  /* bit ranges this node refers to, and those referred to in it */
+  std::pair<Segments*, Segments*> segments = std::make_pair(nullptr, nullptr);
 
 /* used in commonExpr */
   /* hash of the assign trees; identifies nodes that may compute the same value.
