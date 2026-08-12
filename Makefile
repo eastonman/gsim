@@ -143,7 +143,20 @@ GSIM_INC_DIR = include $(PARSER_DIR)/include $(PARSER_BUILD_DIR)
 # 2) If you still see "DWARF error: invalid or unhandled FORM value: 0x25" from ld
 #    your binutils (ld) may be older than the DWARF version emitted by clang-19.
 #    You can force DWARF v4 by building with: make DWARF4=1 ... (see conditional below).
-CXXFLAGS += -ggdb -O3 -MMD $(addprefix -I,$(GSIM_INC_DIR)) -Wall -Werror --std=c++17 -pthread $(GSIM_PGO_CFLAGS)
+# OpenMP drives the passes that rebuild the graph in parallel. clang wants
+# libomp, which is frequently not installed, while libgomp ships with gcc; ask
+# the compiler which one it can link. If neither works the pragmas are ignored
+# and those passes run serially.
+OPENMP_PROBE = int main(){return 0;}
+OPENMP_FLAGS := $(shell \
+  if echo '$(OPENMP_PROBE)' | $(CXX) -fopenmp -x c++ - -o /dev/null 2>/dev/null; then echo '-fopenmp'; \
+  elif echo '$(OPENMP_PROBE)' | $(CXX) -fopenmp=libgomp -x c++ - -o /dev/null 2>/dev/null; then echo '-fopenmp=libgomp'; \
+  fi)
+ifeq ($(OPENMP_FLAGS),)
+  $(warning OpenMP unavailable, graph passes will run single threaded)
+endif
+
+CXXFLAGS += -ggdb -O3 -MMD $(addprefix -I,$(GSIM_INC_DIR)) -Wall -Werror --std=c++17 -pthread $(GSIM_PGO_CFLAGS) $(OPENMP_FLAGS)
 
 # Optional code generation tuning, both off by default: they trade portability
 # of the gsim binary for speed and leave the generated model unchanged.

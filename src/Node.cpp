@@ -4,8 +4,14 @@
 
 int Node::counter = 1;
 
-void Node::updateConnect() {
+void Node::updateConnect(std::vector<PendingEdge>* pending) {
   if (type == NODE_REG_SRC) return;
+  /* every write below either lands on this node or is handed to the caller */
+  auto remote = [pending](Node* target, Node* value, bool isNext) {
+    if (pending) pending->push_back(PendingEdge{target, value, isNext});
+    else if (isNext) target->addNext(value);
+    else target->addPrev(value);
+  };
   std::queue<ENode*> q;
   for (ExpTree* tree : assignTree) {
     q.push(tree->getRoot());
@@ -18,7 +24,7 @@ void Node::updateConnect() {
     Node* prevNode = top->getNode();
     if (prevNode) {
       addPrev(prevNode);
-      prevNode->addNext(this);
+      remote(prevNode, this, true);
     }
     for (size_t i = 0; i < top->getChildNum(); i ++) {
       if (top->getChild(i)) q.push(top->getChild(i));
@@ -29,7 +35,7 @@ void Node::updateConnect() {
     for (Node* port : memory->member) {
       if (port->type == NODE_WRITER) {
         addNext(port);
-        port->addPrev(this);
+        remote(port, this, false);
       }
     }
   } else if (type == NODE_WRITER) {
@@ -37,7 +43,7 @@ void Node::updateConnect() {
     for (Node* port : memory->member) {
       if (port->type == NODE_READER) {
         addPrev(port);
-        port->addNext(this);
+        remote(port, this, true);
       }
     }
   }
