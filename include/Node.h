@@ -172,6 +172,9 @@ class Node {
 
   /* used in constantNode: value known at compile time, if any */
   valInfo* consInfo = nullptr;
+/* used in removeDeadNodes: stamp of the pass that last reached this node */
+  int deadMark = 0;
+
 /* used in splitNodes */
   NodeComponent* component = nullptr;
   /* bit ranges this node refers to, and those referred to in it */

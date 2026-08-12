@@ -44,12 +44,16 @@ void graph::removeDeadNodes() {
   if (globalConfig.LogLevel > 1) {
     fprintf(stderr, "[RemoveDeadNodes] pass %d start\n", curPass);
   }
-  std::set<Node*> visited;
+  /* reachability is a membership test over every node in the design, so it is
+   * kept as a stamp on the node rather than in a container that has to be
+   * built and searched each pass */
+  static int mark = 0;
+  const int thisMark = ++ mark;
   std::stack<Node*> s;
-  auto add = [&visited, &s](Node* node) {
-    if (visited.find(node) == visited.end()) {
+  auto add = [thisMark, &s](Node* node) {
+    if (node->deadMark != thisMark) {
       s.push(node);
-      visited.insert(node);
+      node->deadMark = thisMark;
     }
   };
   for (Node* outNode : output) add(outNode);
@@ -85,7 +89,7 @@ void graph::removeDeadNodes() {
   for (SuperNode* super : sortedSuper) {
     for (Node* node : super->member) {
       if (node->type == NODE_INP || node->type == NODE_OUT) continue;
-      if (visited.find(node) == visited.end()) {
+      if (node->deadMark != thisMark) {
         if (globalConfig.LogLevel > 1) {
           fprintf(stderr, "[RemoveDeadNodes] pass %d mark dead: %s type=%d super=%d line=%d\n",
                   curPass, node->name.c_str(), node->type, super->id, __LINE__);
