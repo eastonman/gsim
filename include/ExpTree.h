@@ -81,6 +81,8 @@ enum OPType {
 
 class ENode {
 public:
+  /* used in constantNode */
+  valInfo* consInfo = nullptr;
   /* used in splitNodes */
   NodeComponent* component = nullptr;
 private:

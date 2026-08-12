@@ -159,6 +159,8 @@ class Node {
 /* used in instsGenerator */
   bool nodeIsRoot = false;
 
+  /* used in constantNode: value known at compile time, if any */
+  valInfo* consInfo = nullptr;
 /* used in splitNodes */
   NodeComponent* component = nullptr;
   /* bit ranges this node refers to, and those referred to in it */
