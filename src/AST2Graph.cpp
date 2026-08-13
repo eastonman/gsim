@@ -4,6 +4,7 @@
 
 
 #include "common.h"
+#include <unordered_set>
 #include <stack>
 #include <map>
 #include <utility>
@@ -33,17 +34,24 @@ ENode* getWhenEnode(ExpTree* valTree, int depth);
 void fillEmptyWhen(ExpTree* newTree, ENode* oldNode);
 
 /* map between module name and module pnode*/
-static std::map<std::string, PNode*> moduleMap;
+/* these four are only ever looked up, never walked, so nothing observes the
+   ordering a tree would give and the keys can be hashed instead of compared */
+static std::unordered_map<std::string, PNode*> moduleMap;
 /* prefix trace. module1, module1$module2 module1$a_b_c...*/
 static std::stack<std::string> prefixTrace;
+/* Signals are walked in name order by the passes at the end of this file, and
+   the order they are visited in decides the ids handed out, so the ordered map
+   stays. Every lookup goes through the hash index beside it: comparing these
+   long hierarchical names was the single largest cost in the whole compile. */
 static std::map<std::string, Node*> allSignals;
-static std::map<std::string, AggrParentNode*> allAggr; // CHECK: any other aggr nodes ?
+static std::unordered_map<std::string, Node*> signalIndex;
+static std::unordered_map<std::string, AggrParentNode*> allAggr; // CHECK: any other aggr nodes ?
 static std::vector<std::pair<bool, Node*>> whenTrace;
-static std::set<std::string> moduleInstances;
+static std::unordered_set<std::string> moduleInstances;
 
 static std::set<Node*> stmtsNodes;
 
-static std::map<std::string, std::pair<std::vector<Node*>, std::vector<AggrParentNode*>>> memoryMap;
+static std::unordered_map<std::string, std::pair<std::vector<Node*>, std::vector<AggrParentNode*>>> memoryMap;
 
 static inline void typeCheck(PNode* node, const int expect[], int size, int minChildNum, int maxChildNum) {
   const int* expectEnd = expect + size;
@@ -61,20 +69,21 @@ static inline Node* allocNode(NodeType type = NODE_OTHERS, std::string name = ""
 }
 
 static inline void addSignal(std::string s, Node* n) {
-  Assert(allSignals.find(s) == allSignals.end(), "Signal %s is already in allSignals\n", s.c_str());
+  Assert(signalIndex.find(s) == signalIndex.end(), "Signal %s is already in allSignals\n", s.c_str());
   Assert(allAggr.find(s) == allAggr.end(), "Signal %s is already in allAggr\n", s.c_str());
   allSignals[s] = n;
+  signalIndex[s] = n;
   n->whenDepth = whenTrace.size();
   // printf("add signal %s\n", s.c_str());
 }
 
 static inline Node* getSignal(std::string s) {
-  Assert(allSignals.find(s) != allSignals.end(), "Signal %s is not in allSignals\n", s.c_str());
-  return allSignals[s];  
+  Assert(signalIndex.find(s) != signalIndex.end(), "Signal %s is not in allSignals\n", s.c_str());
+  return signalIndex[s];  
 }
 
 static inline void addAggr(std::string s, AggrParentNode* n) {
-  Assert(allSignals.find(s) == allSignals.end(), "Signal %s is already in allSignals\n", s.c_str());
+  Assert(signalIndex.find(s) == signalIndex.end(), "Signal %s is already in allSignals\n", s.c_str());
   Assert(allAggr.find(s) == allAggr.end(), "Node %s is already in allAggr\n", s.c_str());
   allAggr[s] = n;
   // printf("add aggr %s\n", s.c_str());
@@ -87,7 +96,7 @@ static inline AggrParentNode* getAggr(std::string s) {
 
 static inline bool isAggr(std::string s) {
   if (allAggr.find(s) != allAggr.end()) return true;
-  if (allSignals.find(s) != allSignals.end()) return false;
+  if (signalIndex.find(s) != signalIndex.end()) return false;
   Assert(0, "%s is not added\n", s.c_str());
 }
 
@@ -1702,12 +1711,12 @@ bool ExpTree::isConstant() {
 }
 
 bool nameExist(std::string str) {
-  return allSignals.find(str) != allSignals.end();
+  return signalIndex.find(str) != signalIndex.end();
 }
 
 void changeName(std::string oldName, std::string newName) {
-  Assert(allSignals.find(oldName) != allSignals.end(), "signal %s not found", oldName.c_str());
-  allSignals[oldName]->name = newName;
+  Assert(signalIndex.find(oldName) != signalIndex.end(), "signal %s not found", oldName.c_str());
+  signalIndex[oldName]->name = newName;
   allSignals[newName] = allSignals[oldName];
   allSignals.erase(oldName);
 }
