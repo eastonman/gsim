@@ -78,6 +78,11 @@ void ExpTree::treeOpt() {
 }
 
 void graph::exprOpt() {
+  /* Replacing a zero width node allocates, and expression node ids come from a
+   * shared counter, so that part stays on one thread. What remains only
+   * restructures the trees a node already owns, which is independent per node. */
+  std::vector<Node*> rewrite;
+  rewrite.reserve(countNodes());
   for (SuperNode* super : sortedSuper) {
     if (super->superType != SUPER_VALID) continue;
     for (Node* node : super->member) {
@@ -87,9 +92,16 @@ void graph::exprOpt() {
         node->assignTree.push_back(new ExpTree(enodeInt, node));
         continue;
       }
-      for (ExpTree* tree : node->assignTree) tree->treeOpt();
-      if (node->resetTree) node->resetTree->treeOpt();
+      rewrite.push_back(node);
     }
+  }
+
+  const ptrdiff_t num = rewrite.size();
+  #pragma omp parallel for schedule(static)
+  for (ptrdiff_t i = 0; i < num; i ++) {
+    Node* node = rewrite[i];
+    for (ExpTree* tree : node->assignTree) tree->treeOpt();
+    if (node->resetTree) node->resetTree->treeOpt();
   }
 
   reconnectAll();
