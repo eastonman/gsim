@@ -55,22 +55,10 @@ class AdjSet {
   mutable std::vector<T*> elems;
   mutable bool sorted = true;
 
-  /* sort by id and deduplicate, restoring the set view of the elements.
-     Neighbour counts are small and edges often arrive already ordered, so an
-     insertion sort past a sorted prefix beats a general sort here. */
+  /* sort by id and deduplicate, restoring the set view of the elements */
   void normalize() const {
     if (sorted) return;
-    size_t n = elems.size();
-    size_t head = 1;
-    while (head < n && byId(elems[head - 1], elems[head])) head ++;
-    if (head < n) {
-      for (size_t i = head; i < n; i ++) {
-        T* val = elems[i];
-        size_t j = i;
-        while (j > 0 && byId(val, elems[j - 1])) { elems[j] = elems[j - 1]; j --; }
-        elems[j] = val;
-      }
-    }
+    std::sort(elems.begin(), elems.end(), byId);
     elems.erase(std::unique(elems.begin(), elems.end()), elems.end());
     sorted = true;
   }
