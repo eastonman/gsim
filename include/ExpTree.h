@@ -85,6 +85,8 @@ public:
   valInfo* consInfo = nullptr;
   /* used in splitNodes */
   NodeComponent* component = nullptr;
+  /* used when stripping dummy dimensions: stamp of the walk that reached it */
+  int dimMark = 0;
 private:
   static int counter;
   valInfo* instsMux(Node* n, std::string lvalue, bool isRoot);
@@ -309,7 +311,7 @@ public:
     }
     bool isConstant();
     void removeConstant(const char* ownerName = nullptr);
-    void removeDummyDim(std::map<Node*, std::vector<int>>& arrayMap, std::set<ENode*>& visited);
+    void removeDummyDim(std::unordered_map<Node*, std::vector<int>>& arrayMap, int mark);
     uint64_t keyHash();
     void removeSelfAssignMent(Node* node);
     void matchWidth(int width);

@@ -1741,15 +1741,15 @@ void writer2Reg(ExpTree* tree) {
   }
 }
 
-void ExpTree::removeDummyDim(std::map<Node*, std::vector<int>>& arrayMap, std::set<ENode*>& visited) {
+void ExpTree::removeDummyDim(std::unordered_map<Node*, std::vector<int>>& arrayMap, int mark) {
   std::stack<ENode*> s;
   s.push(getRoot());
   if (getlval()) s.push(getlval());
   while (!s.empty()) {
     ENode* top = s.top();
     s.pop();
-    if (visited.find(top) != visited.end()) continue;
-    visited.insert(top);
+    if (top->dimMark == mark) continue;
+    top->dimMark = mark;
     if (top->getNode() && arrayMap.find(top->getNode()) != arrayMap.end()) {
       std::vector<ENode*> childENode;
       for (size_t i = 0; i < arrayMap[top->getNode()].size(); i ++) {
@@ -1770,7 +1770,7 @@ void ExpTree::removeDummyDim(std::map<Node*, std::vector<int>>& arrayMap, std::s
 
 void removeDummyDim(graph* g) {
   /* remove dimensions of size 1 rom the array */
-  std::map<Node*, std::vector<int>> arrayMap;
+  std::unordered_map<Node*, std::vector<int>> arrayMap;
   for (auto iter : allSignals) {
     Node* node = iter.second;
     if (!node->isArray()) continue;
@@ -1792,10 +1792,11 @@ void removeDummyDim(graph* g) {
       node->dimension = std::vector<int>(validDim);
     }
   }
-  std::set<ENode*> visited;
+  static int dimWalk = 0;
+  const int mark = ++ dimWalk;
   for (auto iter : allSignals) {
     Node* node = iter.second;
-    for (ExpTree* tree : node->assignTree) tree->removeDummyDim(arrayMap, visited);
+    for (ExpTree* tree : node->assignTree) tree->removeDummyDim(arrayMap, mark);
   }
   for (Node* mem : g->memory) {
     std::vector<int> validDim;
