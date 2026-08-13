@@ -174,6 +174,8 @@ class Node {
   valInfo* consInfo = nullptr;
 /* used in removeDeadNodes: stamp of the pass that last reached this node */
   int deadMark = 0;
+  /* used when testing whether an array feeds itself */
+  int selfMark = 0;
 
 /* used in splitNodes */
   NodeComponent* component = nullptr;

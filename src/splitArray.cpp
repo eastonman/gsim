@@ -65,22 +65,23 @@ ExpTree* dupTreeWithIdx(ExpTree* tree, std::vector<int>& index, Node* node) {
 }
 
 bool point2self(Node* node) {
-  std::set<Node*> nextNodes;
+  /* the walk only ever asks whether it has been somewhere already, which the
+   * node can answer itself; direct successors are already a sorted list */
+  static int walk = 0;
+  const int mark = ++ walk;
   std::stack<Node*> s;
-  std::set<Node*> visited;
   for (Node* next : node->next) {
     s.push(next);
-    nextNodes.insert(next);
     if (next == node) return true;
   }
   while(!s.empty()) {
     Node* top = s.top();
     s.pop();
-    if (visited.find(top) != visited.end()) continue;
-    visited.insert(top);
+    if (top->selfMark == mark) continue;
+    top->selfMark = mark;
     for (Node* next : top->next) {
       if (next == node) return true;
-      if (nextNodes.find(next) != nextNodes.end()) continue;
+      if (node->next.find(next) != node->next.end()) continue;
       s.push(next);
     }
   }
