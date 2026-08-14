@@ -124,6 +124,20 @@ enum ResetType { UNCERTAIN, ASYRESET, UINTRESET, ZERO_RESET };
 
 #include "opFuncs.h"
 #include "debug.h"
+#include "config.h"
+
+/* Order collections of nodes by id rather than by address when the
+   --deterministic option is on, so iteration order follows the input instead
+   of the heap layout. Without the option the plain pointer order is kept,
+   preserving the previous behaviour exactly. */
+template <typename T>
+struct IdLess {
+  bool operator()(const T* a, const T* b) const {
+    if (globalConfig.Deterministic) return a->id < b->id;
+    return std::less<const T*>()(a, b);
+  }
+};
+
 #include "Node.h"
 #include "PNode.h"
 #include "ExpTree.h"
@@ -132,7 +146,6 @@ enum ResetType { UNCERTAIN, ASYRESET, UINTRESET, ZERO_RESET };
 #include "util.h"
 #include "valInfo.h"
 #include "perf.h"
-#include "config.h"
 
 #define TIMER_START(name) struct timeval CONCAT(__timer_, name) = getTime();
 #define TIMER_END(name) do { \
