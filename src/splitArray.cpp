@@ -368,8 +368,10 @@ void graph::splitArrayNode(Node* node) {
     if (n->resetTree) n->resetTree->updateWithSplittedArray(n, node, arrayMember);
   }
 
+  for (Node* n : checkNodes) n->updateConnect();
+  /* updateDep reads the successors of the register, so every connection has to
+   * be in place before any of it runs */
   for (Node* n : checkNodes) {
-    n->updateConnect();
     if (n->type == NODE_REG_SRC) {
       n->updateDep();
     }
