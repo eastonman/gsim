@@ -11,8 +11,8 @@ bool nextVarConnect(Node* node);
 bool nameExist(std::string str);
 void changeName(std::string oldName, std::string newName);
 
-static std::set<Node*> fullyVisited;
-static std::set<Node*> partialVisited;
+static std::set<Node*, IdLess<Node>> fullyVisited;
+static std::set<Node*, IdLess<Node>> partialVisited;
 
 static std::map<Node*, std::vector<Node*>> splitArrayMap;
 
