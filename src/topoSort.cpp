@@ -9,6 +9,9 @@
 void graph::topoSort() {
   std::map<SuperNode*, int>times;
   std::stack<SuperNode*> s;
+  /* a superNode can be appended more than once, which would seed the walk with
+   * the same root twice */
+  supersrc.erase(std::unique(supersrc.begin(), supersrc.end()), supersrc.end());
   for (SuperNode* node : supersrc) {
     if (node->depPrev.size() == 0) s.push(node);
   }
