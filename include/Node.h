@@ -353,6 +353,13 @@ public:
   bool operator<(const InstInfo& other) const {
     if (infoType != other.infoType) return infoType < other.infoType;
     if (inst != other.inst) return inst < other.inst;
+    /* the assign forms carry no text, so the node decides the order; compare
+     * identities rather than addresses when --deterministic is on */
+    if (globalConfig.Deterministic) {
+      if (node == other.node) return false;
+      if (!node || !other.node) return other.node != nullptr;
+      return node->id < other.node->id;
+    }
     return node < other.node;
   }
 };
