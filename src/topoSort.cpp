@@ -9,6 +9,13 @@
 void graph::topoSort() {
   std::map<SuperNode*, int>times;
   std::stack<SuperNode*> s;
+#ifdef ORDERED_TOPO_SORT
+  /* splitArray appends to supersrc after AST2Graph sorted it, so the seed order
+   * has to be restored before it decides the traversal; --deterministic only,
+   * without it the seeds keep the previous order */
+  if (globalConfig.Deterministic)
+    std::sort(supersrc.begin(), supersrc.end(), [](SuperNode* a, SuperNode* b) {return a->id < b->id;});
+#endif
   for (SuperNode* node : supersrc) {
     if (node->depPrev.size() == 0) s.push(node);
   }
